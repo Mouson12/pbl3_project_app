@@ -17,7 +17,7 @@ class DevHttpOverrides extends HttpOverrides {
   }
 }
 
-Future<List<List<DataPoint>>> fetchData() async {
+Future<List<List<DataPoint>>> fetchData(String timeRange) async {
   HttpOverrides.global = DevHttpOverrides();
 
   var client = InfluxDBClient(
@@ -31,13 +31,14 @@ Future<List<List<DataPoint>>> fetchData() async {
 
   // Reading the data
   var queryService = client.getQueryService();
+  //String timeRange = "-15m";
 
   var fluxQuery = '''
     from(bucket: "radio_test_10.01")
-    |> range(start: -15m, stop: now()) 
+    |> range(start: $timeRange, stop: now()) 
     |> filter(fn: (r) => r["_measurement"] == "mqtt_consumer") 
     |> filter(fn: (r) => r["_field"] == "RSSI" or r["_field"] == "audio_level")
-    |> aggregateWindow(every: 1m, fn: mean, createEmpty: false)
+    |> aggregateWindow(every: 10s, fn: mean, createEmpty: false)
     |> yield(name: "mean")  
   ''';
 
@@ -51,15 +52,17 @@ Future<List<List<DataPoint>>> fetchData() async {
     await for (var record in recordStream) {
       var field = record['_field'];
       var time = DateTime.parse(record['_time']);
-      var value = record['_value'].toDouble(); // Assuming value is numeric
-
+      //var value = record['_value'].toDouble(); // Assuming value is numeric
+      var value =
+          double.parse((record['_value'].toDouble() ?? 0.0).toStringAsFixed(1));
+      //print(timeRange);
       if (field == 'RSSI') {
         rssiRecords.add(DataPoint(time, value));
       } else if (field == 'audio_level') {
         audioLevelRecords.add(DataPoint(time, value));
       }
     }
-    /*print('RSSI Records:');
+    print('RSSI Records:');
     for (var rssiRecord in rssiRecords) {
       print('Time: ${rssiRecord.time}, Value: ${rssiRecord.value}');
     }
@@ -67,7 +70,7 @@ Future<List<List<DataPoint>>> fetchData() async {
     print('\nAudio Level Records:');
     for (var audioLevelRecord in audioLevelRecords) {
       print('Time: ${audioLevelRecord.time}, Value: ${audioLevelRecord.value}');
-    }*/
+    }
   } catch (e) {
     print('Error fetching data: $e');
   } finally {

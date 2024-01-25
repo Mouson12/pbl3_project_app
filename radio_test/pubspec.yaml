@@ -39,6 +39,7 @@ dependencies:
   flutter_bloc: ^8.1.3
   meta: ^1.7.0
   numberpicker: ^2.1.2
+  mqtt_client: ^10.0.2
   flutter:
     sdk: flutter
 

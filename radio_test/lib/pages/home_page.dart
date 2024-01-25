@@ -1,4 +1,23 @@
 import 'package:flutter/material.dart';
+import 'package:mqtt_client/mqtt_client.dart';
+import 'package:mqtt_client/mqtt_server_client.dart';
+
+void main() {
+  runApp(MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'MQTT Publisher App',
+      theme: ThemeData(
+        primarySwatch: Colors.blue,
+      ),
+      home: HomePage(title: 'MQTT Publisher'),
+    );
+  }
+}
 
 class HomePage extends StatefulWidget {
   const HomePage({Key? key, required this.title}) : super(key: key);
@@ -12,6 +31,51 @@ class HomePage extends StatefulWidget {
 class _MyHomePageState extends State<HomePage> {
   TextEditingController _frequencyController = TextEditingController();
   String _displayedFrequency = '100.0'; // Default frequency
+
+  MqttServerClient? client;
+
+  @override
+  void initState() {
+    super.initState();
+    _setupMqtt();
+  }
+
+  void _setupMqtt() {
+    client = MqttServerClient('2.tcp.eu.ngrok.io', 'flutter_client');
+    client?.port = 16784;
+
+    client?.logging(on: false);
+    client?.keepAlivePeriod = 30;
+
+    client?.onDisconnected = _onDisconnected;
+    client?.onConnected = _onConnected;
+
+    final MqttConnectMessage connectMessage = MqttConnectMessage()
+        .authenticateAs('', '')
+        .withClientIdentifier('flutter_client')
+        .startClean()
+        .withWillQos(MqttQos.atMostOnce);
+
+    client?.connectionMessage = connectMessage;
+
+    _connect();
+  }
+
+  void _onConnected() {
+    print('Connected to the broker');
+  }
+
+  void _onDisconnected() {
+    print('Disconnected from the broker');
+  }
+
+  void _connect() async {
+    try {
+      await client?.connect();
+    } catch (e) {
+      print('Exception: $e');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -89,6 +153,7 @@ class _MyHomePageState extends State<HomePage> {
                   SizedBox(height: 10),
                   ElevatedButton(
                     onPressed: () {
+                      _publishFrequency();
                       setState(() {
                         _displayedFrequency = _frequencyController.text;
                       });
@@ -103,5 +168,15 @@ class _MyHomePageState extends State<HomePage> {
         );
       },
     );
+  }
+
+  void _publishFrequency() {
+    final String topic = 'freq';
+    final String message = '$_displayedFrequency';
+
+    final MqttClientPayloadBuilder builder = MqttClientPayloadBuilder();
+    builder.addString(message);
+
+    client?.publishMessage(topic, MqttQos.exactlyOnce, builder.payload!);
   }
 }

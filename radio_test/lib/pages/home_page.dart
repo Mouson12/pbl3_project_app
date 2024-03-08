@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:mqtt_client/mqtt_client.dart';
 import 'package:mqtt_client/mqtt_server_client.dart';
+import '../features/core/querry_status_code.dart';
+import '../common/status_code_widget.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 void main() {
   runApp(MyApp());
@@ -13,6 +16,7 @@ class MyApp extends StatelessWidget {
       title: 'MQTT Publisher App',
       theme: ThemeData(
         primarySwatch: Colors.blue,
+        fontFamily: 'Montserrat',
       ),
       home: HomePage(title: 'MQTT Publisher'),
     );
@@ -40,9 +44,9 @@ class _MyHomePageState extends State<HomePage> {
     _setupMqtt();
   }
 
-  void _setupMqtt() {
-    client = MqttServerClient('2.tcp.eu.ngrok.io', 'flutter_client');
-    client?.port = 16784;
+  void _setupMqtt() async {
+    client = MqttServerClient('0.tcp.eu.ngrok.io', 'flutter_client');
+    client?.port = 18097;
 
     client?.logging(on: false);
     client?.keepAlivePeriod = 30;
@@ -58,7 +62,31 @@ class _MyHomePageState extends State<HomePage> {
 
     client?.connectionMessage = connectMessage;
 
-    _connect();
+    await _connect(); // Wait for the connection to be established
+
+    // Subscribe to the 'freq' topic
+    //client?.subscribe('freq', MqttQos.atMostOnce);
+
+    // Handle incoming messages on the 'freq' topic
+    client?.updates?.listen((List<MqttReceivedMessage<MqttMessage>> c) {
+      final MqttPublishMessage receivedMessage =
+          c[0].payload as MqttPublishMessage;
+      final String payload = MqttPublishPayload.bytesToStringAsString(
+          receivedMessage.payload.message);
+
+      // Update the displayed frequency text
+      setState(() {
+        _displayedFrequency = payload;
+      });
+    });
+  }
+
+  Future<void> _connect() async {
+    try {
+      await client?.connect();
+    } catch (e) {
+      print('Exception: $e');
+    }
   }
 
   void _onConnected() {
@@ -69,21 +97,20 @@ class _MyHomePageState extends State<HomePage> {
     print('Disconnected from the broker');
   }
 
-  void _connect() async {
-    try {
-      await client?.connect();
-    } catch (e) {
-      print('Exception: $e');
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
+    double screenWidth = MediaQuery.of(context).size.width;
+    double screenHeight = MediaQuery.of(context).size.height;
+
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        title: Text(widget.title),
+        title: Image.asset(
+          "assets/logo.png",
+          fit: BoxFit.contain,
+          height: 66,
+        ),
+        toolbarHeight: 88,
       ),
       body: Center(
         child: Column(
@@ -91,7 +118,7 @@ class _MyHomePageState extends State<HomePage> {
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Text(
-              'Choose Radio Frequency',
+              'Choose Radio Frequency [MHz]',
               style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
@@ -104,17 +131,25 @@ class _MyHomePageState extends State<HomePage> {
                 _showNumericKeyboard(context);
               },
               child: Container(
+                width: screenWidth - 40,
+                height: screenHeight * 0.2,
                 padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                 decoration: BoxDecoration(
-                  border: Border.all(color: Colors.grey),
-                  borderRadius: BorderRadius.circular(5),
+                  border: Border.all(color: const Color.fromARGB(255, 0, 0, 0)),
+                  borderRadius: BorderRadius.circular(20),
                 ),
-                child: Text(
-                  '$_displayedFrequency MHz',
-                  style: TextStyle(fontSize: 18),
+                child: Center(
+                  child: Text(
+                    '$_displayedFrequency',
+                    style: GoogleFonts.rubik(
+                      fontSize: 80,
+                    ),
+                  ),
                 ),
               ),
             ),
+            SizedBox(height: 20),
+            RefreshableStatusCodeWidget(),
           ],
         ),
       ),
@@ -153,11 +188,11 @@ class _MyHomePageState extends State<HomePage> {
                   SizedBox(height: 10),
                   ElevatedButton(
                     onPressed: () {
-                      _publishFrequency();
                       setState(() {
                         _displayedFrequency = _frequencyController.text;
                       });
                       Navigator.pop(context);
+                      _publishFrequency();
                     },
                     child: Text('OK'),
                   ),

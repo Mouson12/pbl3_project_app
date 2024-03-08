@@ -176,7 +176,13 @@ class _StatsPageState extends State<StatsPage> {
                       child: CircularProgressIndicator(),
                     );
                   } else if (snapshot.hasError) {
-                    return Text('Error: ${snapshot.error}');
+                    if (snapshot.error is Exception) {
+                      return Center(
+                        child: Text('No Data. Please refresh.'),
+                      );
+                    } else {
+                      return Text('Error: ${snapshot.error}');
+                    }
                   } else if (snapshot.hasData) {
                     var rssiData = snapshot.data![0];
                     var audioLevelData = snapshot.data![1];
@@ -246,7 +252,7 @@ class _StatsPageState extends State<StatsPage> {
                         Container(
                           alignment: Alignment.center,
                           child: Text(
-                            'RF Signal Level',
+                            'Audio Signal Level',
                             style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
